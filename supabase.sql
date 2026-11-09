@@ -35,22 +35,37 @@ create policy "envoi public" on public.inscriptions
   for insert to anon, authenticated
   with check (statut = 'nouvelle');
 
+-- Contrôle admin rangé dans un schéma privé (non exposé par l'API).
+create schema if not exists private;
+revoke all on schema private from public, anon;
+grant usage on schema private to authenticated;
+create or replace function private.is_admin()
+returns boolean language sql stable security definer set search_path = ''
+as $$ select exists (select 1 from public.admins a where a.user_id = (select auth.uid())); $$;
+revoke all on function private.is_admin() from public, anon;
+grant execute on function private.is_admin() to authenticated;
+
 -- Seuls les administrateurs lisent, modifient et suppriment.
 drop policy if exists "admin lecture" on public.inscriptions;
 create policy "admin lecture" on public.inscriptions
   for select to authenticated
-  using (exists (select 1 from public.admins a where a.user_id = auth.uid()));
+  using ((select private.is_admin()));
 
 drop policy if exists "admin modification" on public.inscriptions;
 create policy "admin modification" on public.inscriptions
   for update to authenticated
-  using (exists (select 1 from public.admins a where a.user_id = auth.uid()))
-  with check (exists (select 1 from public.admins a where a.user_id = auth.uid()));
+  using ((select private.is_admin()))
+  with check ((select private.is_admin()));
 
 drop policy if exists "admin suppression" on public.inscriptions;
 create policy "admin suppression" on public.inscriptions
   for delete to authenticated
-  using (exists (select 1 from public.admins a where a.user_id = auth.uid()));
+  using ((select private.is_admin()));
+
+-- Droits : les visiteurs peuvent seulement envoyer.
+grant insert on public.inscriptions to anon;
+revoke select, update, delete on public.inscriptions from anon;
+revoke all on public.admins from anon;
 
 -- Un admin peut vérifier qu'il est bien admin.
 drop policy if exists "admin se voit" on public.admins;
