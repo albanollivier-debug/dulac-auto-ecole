@@ -80,3 +80,35 @@ create policy "admin se voit" on public.admins
 --
 -- insert into public.admins (user_id)
 -- select id from auth.users where email = 'ton.email@exemple.fr';
+
+-- 5. Contenu du site modifiable depuis l'espace gestion
+alter table public.inscriptions add column if not exists extra jsonb not null default '{}'::jsonb;
+alter table public.inscriptions drop constraint if exists inscriptions_extra_taille;
+alter table public.inscriptions add constraint inscriptions_extra_taille check (pg_column_size(extra) <= 8000);
+alter table public.inscriptions drop constraint if exists inscriptions_code_check;
+alter table public.inscriptions add constraint inscriptions_code_check check (char_length(code) <= 80);
+
+create table if not exists public.site_config (
+  id         smallint primary key default 1 check (id = 1),
+  data       jsonb not null check (pg_column_size(data) < 3000000),
+  updated_at timestamptz not null default now(),
+  updated_by uuid
+);
+alter table public.site_config enable row level security;
+create or replace function private.touch_site_config()
+returns trigger language plpgsql set search_path = ''
+as $$ begin new.updated_at := now(); new.updated_by := auth.uid(); return new; end $$;
+revoke all on function private.touch_site_config() from public, anon;
+drop trigger if exists site_config_touch on public.site_config;
+create trigger site_config_touch before insert or update on public.site_config
+  for each row execute function private.touch_site_config();
+drop policy if exists "lecture publique" on public.site_config;
+create policy "lecture publique" on public.site_config for select to anon, authenticated using (true);
+drop policy if exists "admin publie" on public.site_config;
+create policy "admin publie" on public.site_config for insert to authenticated with check ((select private.is_admin()));
+drop policy if exists "admin met a jour" on public.site_config;
+create policy "admin met a jour" on public.site_config for update to authenticated
+  using ((select private.is_admin())) with check ((select private.is_admin()));
+grant select on public.site_config to anon, authenticated;
+grant insert, update on public.site_config to authenticated;
+revoke insert, update, delete on public.site_config from anon;

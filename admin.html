@@ -47,6 +47,7 @@ input:focus,select:focus{outline:none;border-color:var(--p)}
 .top h1{font-size:1.4rem;margin-right:auto}
 .top h1 span{color:var(--p)}
 .who{font-size:13px;color:var(--muted);overflow-wrap:anywhere}
+.top a.btn-p{color:var(--p-ink)}
 main{padding-block:24px 60px;display:grid;gap:20px}
 .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px}
 .stat{display:grid;gap:2px;padding:14px 16px;text-align:left;background:var(--surface);border:1px solid var(--line);border-left:4px solid var(--c,var(--muted));border-radius:8px;color:var(--ink);font:inherit;cursor:pointer}
@@ -107,6 +108,8 @@ main{padding-block:24px 60px;display:grid;gap:20px}
     <div class="wrap">
       <h1>Dulac Auto <span>· Inscriptions</span></h1>
       <span class="who" id="who"></span>
+      <a class="btn btn-p" href="./#edition">✎ Modifier le site</a>
+      <a class="btn" href="./">Voir le site</a>
       <button class="btn" id="refresh" type="button">Actualiser</button>
       <button class="btn" id="csv" type="button">Exporter (CSV)</button>
       <button class="btn" id="logout" type="button">Se déconnecter</button>
@@ -225,6 +228,7 @@ function draw(){
         <div><dt>Code de la route</dt><dd>${esc(r.code||"—")}</dd></div>
         <div><dt>Financement</dt><dd>${esc((r.financement||[]).join(", ")||"Non précisé")}</dd></div>
         <div><dt>Message</dt><dd>${esc(r.message||"—")}</dd></div>
+        ${Object.entries(r.extra||{}).map(([k,v])=>`<div><dt>${esc(k)}</dt><dd>${esc(v)}</dd></div>`).join("")}
       </dl>
       <button class="del" type="button" data-del>Supprimer cette inscription</button>
     </div>
@@ -254,9 +258,9 @@ document.addEventListener("change",async e=>{
 /* Export CSV (séparateur point-virgule pour Excel en français) */
 $("#csv").onclick=()=>{
   const v=visible();if(!v.length){toast("Rien à exporter.");return}
-  const cols=[["created_at","Reçue le"],["statut","Statut"],["prenom","Prénom"],["nom","Nom"],["naissance","Naissance"],["tel","Téléphone"],["email","E-mail"],["formule","Formule"],["prix","Prix"],["code","Code"],["financement","Financement"],["message","Message"]];
+  const cols=[["created_at","Reçue le"],["statut","Statut"],["prenom","Prénom"],["nom","Nom"],["naissance","Naissance"],["tel","Téléphone"],["email","E-mail"],["formule","Formule"],["prix","Prix"],["code","Code"],["financement","Financement"],["message","Message"],["extra","Autres réponses"]];
   const cell=x=>`"${String(Array.isArray(x)?x.join(", "):x??"").replace(/"/g,'""')}"`;
-  const csv="﻿"+[cols.map(c=>cell(c[1])).join(";"),...v.map(r=>cols.map(([k])=>cell(k==="created_at"?fmtDate(r[k]):r[k])).join(";"))].join("\r\n");
+  const csv="﻿"+[cols.map(c=>cell(c[1])).join(";"),...v.map(r=>cols.map(([k])=>cell(k==="created_at"?fmtDate(r[k]):k==="extra"?Object.entries(r.extra||{}).map(([a,b])=>a+" : "+b).join(" | "):r[k])).join(";"))].join("\r\n");
   const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([csv],{type:"text/csv;charset=utf-8"}));a.download=`inscriptions-dulac-auto-${new Date().toISOString().slice(0,10)}.csv`;document.body.append(a);a.click();a.remove();
 };
 
